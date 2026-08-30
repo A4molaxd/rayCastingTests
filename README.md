@@ -4,3 +4,5 @@ It features 2D with views of the rays and 3D with the perspective of the ray's f
 
 - Move - WASD.
 - Look around - Arrow keys.
+
+Probably adding ray marching too in this repo.
