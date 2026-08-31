@@ -7,14 +7,7 @@ HEIGHT, WIDTH, DEPTH = 800, 800, 800
 
 screen = pygame.display.set_mode((HEIGHT, WIDTH))
 
-res = 0.1
-
-FOV = np.pi/3
-
-vel = 4
-avel = 3 * np.pi / 180
-
-COLORS = {"line": (0, 255, 0)}
+COLORS = {"line": np.array([0, 1, 0]), "sphere": np.array([1, 0, 0])}
 
 def clamp(s, x, y):
     return max(min(s, y), x)
@@ -22,6 +15,9 @@ def clamp(s, x, y):
 def sdfLine(point, line, R):
     h = min(1, max(0, np.dot(point - line.a, line.b - line.a)/np.dot(line.b - line.a, line.b - line.a)))
     return np.linalg.norm(point - line.a - (line.b - line.a) * h) - R
+
+def sdfSphere(point, sphere):
+    return np.linalg.norm(point - sphere.p) - sphere.r
 
 class Ray():
     def __init__(self, x, y, z, theta, phi):
@@ -42,6 +38,9 @@ class Ray():
                 if object.type == "line":
                     sdf = sdfLine(self.p, object, R)
                     sdfType = "line"
+                elif object.type == "sphere":
+                    sdf = sdfSphere(self.p, object)
+                    sdfType = "sphere"
 
                 if minDist > sdf:
                     minDist = sdf
@@ -51,7 +50,7 @@ class Ray():
 
             self.p += np.array([np.cos(self.theta)*np.cos(self.phi), np.sin(self.theta)*np.cos(self.phi), np.sin(self.phi)], dtype="float64")*minDist
             d += minDist
-            if 0.1 > minDist:
+            if minDist < 10:
                 return (minType, d)
             if self.p[0] < 0 or self.p[0] > WIDTH or self.p[1] < 0 or self.p[1] > HEIGHT or self.p[2] < 0 or self.p[2] > DEPTH:
                 return (None, -1)
@@ -65,6 +64,12 @@ class Line():
         self.b = np.array([bx, by, bz], dtype="float64")
         self.type = "line"
 
+class Sphere():
+    def __init__(self, x, y, z, r):
+        self.p = np.array([x, y, z])
+        self.r = r
+        self.type = "sphere"
+
 def main():
     
     run = True
@@ -74,12 +79,20 @@ def main():
 
     R = 10
 
+    res = 0.05
+
+    FOV = np.pi/3
+
+    vel = 4
+    avel = 5 * np.pi / 180
+
     x0 = 400
     y0 = 400
     z0 = 400
 
-    theta = FOV
-    phi = -FOV
+    theta = 0
+    phi = 0
+
     for i in range(int((phi-FOV/2) / res), int((phi+FOV/2) / res)):
         for j in range(int((theta-FOV/2) / res), int((theta+FOV/2) / res)):
         
@@ -88,6 +101,7 @@ def main():
     objects = []
     objects.append(Line(600, 600, 0, 600, 200, 0))
     objects.append(Line(100, 100, 100, 700, 500, 500))
+    objects.append(Sphere(100, 700, 100, 50))
 
     inputs = []
 
@@ -150,21 +164,21 @@ def main():
 
         for i in inputs:
             if i == 'D':
-                x0 = clamp(x0 + np.cos(np.radians(theta+np.pi/2))*vel, 0, WIDTH)
-                y0 = clamp(y0 + np.sin(np.radians(theta+np.pi/2))*vel, 0, HEIGHT)
+                x0 += np.cos(theta+np.pi/2)*vel
+                y0 += np.sin(theta+np.pi/2)*vel
             if i == 'A':
-                x0 = clamp(x0 + np.cos(np.radians(theta-np.pi/2))*vel, 0, WIDTH)
-                y0 = clamp(y0 + np.sin(np.radians(theta-np.pi/2))*vel, 0, HEIGHT)
+                x0 += np.cos(theta-np.pi/2)*vel
+                y0 += np.sin(theta-np.pi/2)*vel
             if i == 'W':
-                x0 = clamp(x0 + np.cos(np.radians(theta))*vel, 0, WIDTH)
-                y0 = clamp(y0 + np.sin(np.radians(theta))*vel, 0, HEIGHT)
+                x0 += np.cos(theta)*vel
+                y0 += np.sin(theta)*vel
             if i == 'S':
-                x0 = clamp(x0 + np.cos(np.radians(theta+np.pi))*vel, 0, WIDTH)
-                y0 = clamp(y0 + np.sin(np.radians(theta+np.pi))*vel, 0, HEIGHT)
+                x0 += np.cos(theta+np.pi)*vel
+                y0 += np.sin(theta+np.pi)*vel
             if i == 'T':
-                z0 = clamp(z0 + vel, 0, DEPTH)
+                z0 -= vel
             if i == 'B':
-                z0 = clamp(z0 - vel, 0, DEPTH)
+                z0 += vel
             if i == 'L':
                 theta -= avel
                 for ray in rays:
@@ -174,25 +188,25 @@ def main():
                 for ray in rays:
                     ray.theta += avel
             if i == 'U':
-                phi += avel
-                for ray in rays:
-                    ray.theta += avel
-            if i == 'O':
                 phi -= avel
                 for ray in rays:
                     ray.phi -= avel
+            if i == 'O':
+                phi += avel
+                for ray in rays:
+                    ray.phi += avel
 
         screen.fill('black')
-        pixels = pygame.PixelArray(screen)
+        pixels = np.full((HEIGHT, WIDTH, 3), [160, 160, 160])
+        size = int(np.sqrt(len(rays)))
         for i, ray in enumerate(rays):
             ray.move(x0, y0, z0)
             t, d = ray.march(objects, R)
-            if d == -1:
-                pixels[i%10, i//10] = [(160, 160, 160)]
-            else:
-                pixels[i%10, i//10] = [COLORS[t]]
-        pixels.close()
-
+            if d != -1:
+                pixels[int((i%size) * 800/size): int((i%size) * 800/size) + int(max(size, 800/size)), int((i//size) * 800/size): int((i//size) * 800/size) + int(max(size, 800/size))] = COLORS[t] * clamp((255 + (d / 1386) * -255), 0, 255) # max distance = 1.386 inside a 800x800x800 cube
+        print([x0, y0, z0])
+        surface = pygame.surfarray.make_surface(pixels)
+        screen.blit(surface, (0, 0))
         pygame.display.flip()
         clock.tick(60)
 
