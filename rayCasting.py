@@ -27,7 +27,6 @@ def map(s, x0, x1, y0, y1):
 def clamp(s, x, y):
     return max(min(s, y), x)
 
-
 class Ray():
     def __init__(self, x, y, angle):
         self.xi = x
@@ -67,7 +66,7 @@ class Ray():
         self.xi = xo
         self.yi = yo
                 
-    def draw(self):
+    def draw2D(self):
         pygame.draw.line(screen, 'white', (self.xi, self.yi), (self.x, self.y))
 
     def draw3D(self, a):
@@ -176,7 +175,7 @@ def main():
             ray.move(xo, yo)
             ray.cast(objects)
             if mode == "2D":
-                ray.draw()
+                ray.draw2D()
             else:
                 ray.draw3D(a)
         if mode == "2D":
