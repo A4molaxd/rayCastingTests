@@ -1,5 +1,5 @@
 import pygame
-import math
+import numpy as np
 
 pygame.init()
 
@@ -7,15 +7,17 @@ HEIGHT, WIDTH = 800, 800
 
 screen = pygame.display.set_mode((HEIGHT, WIDTH))
 
-res = 4
+res = 10
 
 FOV = 60
 
 vel = 4
 avel = 3
 
-def dist(x, y):
-    return(pow(pow(x[0]-y[0], 2) + pow(x[1]-y[1], 2), 1/2))
+def dist(x, y = []):
+    if y == []:
+        y = [0 for _ in range(len(x))]
+    return(pow(sum(pow(x0 - y0, 2) for x0, y0 in zip(x, y)), 1/2))
 
 def map(s, x0, x1, y0, y1):
     return y0 + (float(s - x0) / float(x1 - x0)) * (y1 - y0)
@@ -23,56 +25,46 @@ def map(s, x0, x1, y0, y1):
 def clamp(s, x, y):
     return max(min(s, y), x)
 
-def dot(x, y):
-    return sum(x0 * y0 for x0, y0 in zip(x, y))
-
-def Sum(x, y):
-    return [x0 + y0 for x0, y0 in zip(x, y)]
-
-def Sub(x, y):
-    return [x0 - y0 for x0, y0 in zip(x, y)]
-
-def Mult(t, x):
-    return [t * x0 for x0 in x]
-
 
 def sdfLine(point, line, R):
-    h = min(1, max(0, dot(Sub(point, line.a), Sub(line.b, line.a))/dot(Sub(line.b, line.a), Sub(line.b, line.a))))
-    return dist([0, 0], Sub(Sub(point, line.a), Mult(h, Sub(line.b, line.a)))) - R
+    h = min(1, max(0, np.dot(point - line.a, line.b - line.a)/np.dot(line.b - line.a, line.b - line.a)))
+    return np.linalg.norm(point - line.a - (line.b - line.a) * h) - R
 
 class Ray():
     def __init__(self, x, y, angle):
-        self.pi = [x, y]
-        self.p = [x, y]
+        self.pi = np.array([x, y], dtype="float64")
+        self.p = np.array([x, y], dtype="float64")
         self.angle = angle
 
-    def march(self, objects):
+    def march(self, objects, R):
         self.p = self.pi.copy()
+
         while True: 
 
-            minDist = math.inf
+            minDist = np.inf
 
             for object in objects:
 
                 if object.type == "line":
-                    sdf = sdfLine(self.p, object, 10)
+                    sdf = sdfLine(self.p, object, R)
 
                 if minDist > sdf:
                     minDist = sdf
+
+            pygame.draw.circle(screen, "white", self.p, minDist, 1)
+
+            self.p += np.array([np.cos(np.radians(self.angle)), np.sin(np.radians(self.angle))], dtype="float64")*minDist
             
-            self.p = Sum(self.p, [math.cos(self.angle), math.sin(self.angle)])
-                
-            if 1 > minDist or minDist > 1000:
+            if R > minDist or self.p[0] < 0 or self.p[0] > WIDTH or self.p[1] < 0 or self.p[1] > HEIGHT:
                 break
 
     def move(self, xo, yo):
-        self.pi = [xo, yo]
+        self.pi = np.array([xo, yo], dtype="float64")
 
     def draw2D(self):
         pygame.draw.line(screen, "white", self.pi, self.p)
 
     def draw3D(self, a):
-
         ...
 
 
@@ -82,8 +74,8 @@ class Ray():
         
 class Object():
     def __init__(self, ax, ay, bx, by):
-        self.a = [ax, ay]
-        self.b = [bx, by]
+        self.a = np.array([ax, ay], dtype="float64")
+        self.b = np.array([bx, by], dtype="float64")
         self.type = "line"
     
     def draw(self):
@@ -95,6 +87,8 @@ def main():
     clock = pygame.time.Clock()
 
     rays = []
+
+    R = 10
 
     xo = 400
     yo = 400
@@ -139,6 +133,10 @@ def main():
                         mode = "2D"
                     else:
                         mode = "3D"
+                if e.key == pygame.K_e:
+                    R += 1
+                if e.key == pygame.K_q:
+                    R -= 1
 
             if e.type == pygame.KEYUP:
                 if e.key == pygame.K_d:
@@ -155,17 +153,17 @@ def main():
                     inputs.remove('R')
         for i in inputs:
             if i == 'D':
-                xo = clamp(xo + math.cos(math.radians(a+90))*vel, 0, WIDTH)
-                yo = clamp(yo + math.sin(math.radians(a+90))*vel, 0, HEIGHT)
+                xo = clamp(xo + np.cos(np.radians(a+90))*vel, 0, WIDTH)
+                yo = clamp(yo + np.sin(np.radians(a+90))*vel, 0, HEIGHT)
             if i == 'A':
-                xo = clamp(xo + math.cos(math.radians(a-90))*vel, 0, WIDTH)
-                yo = clamp(yo + math.sin(math.radians(a-90))*vel, 0, HEIGHT)
+                xo = clamp(xo + np.cos(np.radians(a-90))*vel, 0, WIDTH)
+                yo = clamp(yo + np.sin(np.radians(a-90))*vel, 0, HEIGHT)
             if i == 'W':
-                xo = clamp(xo + math.cos(math.radians(a))*vel, 0, WIDTH)
-                yo = clamp(yo + math.sin(math.radians(a))*vel, 0, HEIGHT)
+                xo = clamp(xo + np.cos(np.radians(a))*vel, 0, WIDTH)
+                yo = clamp(yo + np.sin(np.radians(a))*vel, 0, HEIGHT)
             if i == 'S':
-                xo = clamp(xo + math.cos(math.radians(a+180))*vel, 0, WIDTH)
-                yo = clamp(yo + math.sin(math.radians(a+180))*vel, 0, HEIGHT)
+                xo = clamp(xo + np.cos(np.radians(a+180))*vel, 0, WIDTH)
+                yo = clamp(yo + np.sin(np.radians(a+180))*vel, 0, HEIGHT)
             if i == 'L':
                 a -= avel
                 for ray in rays:
@@ -179,7 +177,7 @@ def main():
 
         for ray in rays:
             ray.move(xo, yo)
-            ray.march(objects)
+            ray.march(objects, R)
             if mode == "2D":
                 ray.draw2D()
             else:
