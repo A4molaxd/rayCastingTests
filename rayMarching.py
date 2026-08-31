@@ -7,7 +7,7 @@ HEIGHT, WIDTH, DEPTH = 800, 800, 800
 
 screen = pygame.display.set_mode((HEIGHT, WIDTH))
 
-COLORS = {"line": np.array([0, 1, 0]), "sphere": np.array([1, 0, 0])}
+COLORS = {"line": np.array([0, 1, 0]), "sphere": np.array([1, 0, 0]), "infPlane": np.array([1, 1, 1])}
 
 def clamp(s, x, y):
     return max(min(s, y), x)
@@ -19,6 +19,28 @@ def sdfLine(point, line, R):
 def sdfSphere(point, sphere):
     return np.linalg.norm(point - sphere.p) - sphere.r
 
+def sdfInfPlane(point, plane):
+    return -(point[2]-plane.z)
+
+
+def sdfScene(point, objects, R):
+    minDist = np.inf
+    minType = None
+    for object in objects:
+        if object.type == "line":
+            sdf = sdfLine(point, object, R)
+            sdfType = "line"
+        elif object.type == "sphere":
+            sdf = sdfSphere(point, object)
+            sdfType = "sphere"
+        elif object.type == "infPlane":
+            sdf = sdfInfPlane(point, object)
+            sdfType = "infPlane"
+        if minDist > sdf:
+            minDist = sdf
+            minType = sdfType
+    return minDist, minType
+
 class Ray():
     def __init__(self, x, y, z, theta, phi):
         self.pi = np.array([x, y, z], dtype="float64")
@@ -29,28 +51,14 @@ class Ray():
     def march(self, objects, R):
         self.p = self.pi.copy()
         d = 0
+        direction = np.array([np.cos(self.theta)*np.cos(self.phi), np.sin(self.theta)*np.cos(self.phi), np.sin(self.phi)], dtype="float64")
         while True: 
 
-            minDist = np.inf
+            minDist, minType = sdfScene(self.p, objects, R)
 
-            for object in objects:
-
-                if object.type == "line":
-                    sdf = sdfLine(self.p, object, R)
-                    sdfType = "line"
-                elif object.type == "sphere":
-                    sdf = sdfSphere(self.p, object)
-                    sdfType = "sphere"
-
-                if minDist > sdf:
-                    minDist = sdf
-                    minType = sdfType
-
-            #pygame.draw.circle(screen, "white", self.p, minDist, 1)
-
-            self.p += np.array([np.cos(self.theta)*np.cos(self.phi), np.sin(self.theta)*np.cos(self.phi), np.sin(self.phi)], dtype="float64")*minDist
+            self.p += direction*minDist
             d += minDist
-            if minDist < 10:
+            if minDist < 1:
                 return (minType, d)
             if self.p[0] < 0 or self.p[0] > WIDTH or self.p[1] < 0 or self.p[1] > HEIGHT or self.p[2] < 0 or self.p[2] > DEPTH:
                 return (None, -1)
@@ -70,6 +78,11 @@ class Sphere():
         self.r = r
         self.type = "sphere"
 
+class InfPlane():
+    def __init__(self, z):
+        self.z = z
+        self.type = "infPlane"
+
 def main():
     
     run = True
@@ -79,7 +92,7 @@ def main():
 
     R = 10
 
-    res = 0.05
+    res = 0.02
 
     FOV = np.pi/3
 
@@ -99,15 +112,17 @@ def main():
             rays.append(Ray(x0, y0, z0, j*res, i*res))
 
     objects = []
-    objects.append(Line(600, 600, 0, 600, 200, 0))
-    objects.append(Line(100, 100, 100, 700, 500, 500))
-    objects.append(Sphere(100, 700, 100, 50))
+    #objects.append(Line(600, 600, 0, 600, 200, 0))
+    #objects.append(Line(100, 100, 100, 700, 500, 500))
+    objects.append(Sphere(600, 400, 400, 50))
+    #objects.append(InfPlane(800))
 
     inputs = []
-
+    frame = 0
     while run:
-
-        pygame.display.set_caption("FPS: " + str(clock.get_fps()))
+        frame += 1
+        if frame % 10:
+            pygame.display.set_caption("FPS: " + str(clock.get_fps()))
 
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
@@ -188,13 +203,13 @@ def main():
                 for ray in rays:
                     ray.theta += avel
             if i == 'U':
-                phi -= avel
+                phi = clamp(phi - avel, -np.pi, np.pi)
                 for ray in rays:
-                    ray.phi -= avel
+                    ray.phi = clamp(ray.phi - avel, -np.pi, np.pi)
             if i == 'O':
-                phi += avel
+                phi = clamp(phi + avel, -np.pi, np.pi)
                 for ray in rays:
-                    ray.phi += avel
+                    ray.phi = clamp(ray.phi + avel, -np.pi, np.pi)
 
         screen.fill('black')
         pixels = np.full((HEIGHT, WIDTH, 3), [160, 160, 160])
