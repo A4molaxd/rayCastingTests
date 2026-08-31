@@ -14,10 +14,6 @@ FOV = 60
 vel = 4
 avel = 3
 
-# TODO: Hacer que cuanto más cerca esté un rayo más ancho sea. Se podría hacer llevando la cuenta del WIDTH usado con 
-# una variable y mapeando el valor que tendrían que tener la suma de los rayos para que diesen el valor que hiciese 
-# que ocupase toda la pantalla.
-
 def dist(x, y):
     return(pow(pow(x[0]-y[0], 2) + pow(x[1]-y[1], 2), 1/2))
 
