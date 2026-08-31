@@ -3,42 +3,36 @@ import numpy as np
 
 pygame.init()
 
-HEIGHT, WIDTH = 800, 800
+HEIGHT, WIDTH, DEPTH = 800, 800, 800
 
 screen = pygame.display.set_mode((HEIGHT, WIDTH))
 
-res = 10
+res = 0.1
 
-FOV = 60
+FOV = np.pi/3
 
 vel = 4
-avel = 3
+avel = 3 * np.pi / 180
 
-def dist(x, y = []):
-    if y == []:
-        y = [0 for _ in range(len(x))]
-    return(pow(sum(pow(x0 - y0, 2) for x0, y0 in zip(x, y)), 1/2))
-
-def map(s, x0, x1, y0, y1):
-    return y0 + (float(s - x0) / float(x1 - x0)) * (y1 - y0)
+COLORS = {"line": (0, 255, 0)}
 
 def clamp(s, x, y):
     return max(min(s, y), x)
-
 
 def sdfLine(point, line, R):
     h = min(1, max(0, np.dot(point - line.a, line.b - line.a)/np.dot(line.b - line.a, line.b - line.a)))
     return np.linalg.norm(point - line.a - (line.b - line.a) * h) - R
 
 class Ray():
-    def __init__(self, x, y, angle):
-        self.pi = np.array([x, y], dtype="float64")
-        self.p = np.array([x, y], dtype="float64")
-        self.angle = angle
+    def __init__(self, x, y, z, theta, phi):
+        self.pi = np.array([x, y, z], dtype="float64")
+        self.p = np.array([x, y, z], dtype="float64")
+        self.theta = theta
+        self.phi = phi
 
     def march(self, objects, R):
         self.p = self.pi.copy()
-
+        d = 0
         while True: 
 
             minDist = np.inf
@@ -47,39 +41,29 @@ class Ray():
 
                 if object.type == "line":
                     sdf = sdfLine(self.p, object, R)
+                    sdfType = "line"
 
                 if minDist > sdf:
                     minDist = sdf
+                    minType = sdfType
 
-            pygame.draw.circle(screen, "white", self.p, minDist, 1)
+            #pygame.draw.circle(screen, "white", self.p, minDist, 1)
 
-            self.p += np.array([np.cos(np.radians(self.angle)), np.sin(np.radians(self.angle))], dtype="float64")*minDist
-            
-            if R > minDist or self.p[0] < 0 or self.p[0] > WIDTH or self.p[1] < 0 or self.p[1] > HEIGHT:
-                break
+            self.p += np.array([np.cos(self.theta)*np.cos(self.phi), np.sin(self.theta)*np.cos(self.phi), np.sin(self.phi)], dtype="float64")*minDist
+            d += minDist
+            if 0.1 > minDist:
+                return (minType, d)
+            if self.p[0] < 0 or self.p[0] > WIDTH or self.p[1] < 0 or self.p[1] > HEIGHT or self.p[2] < 0 or self.p[2] > DEPTH:
+                return (None, -1)
 
-    def move(self, xo, yo):
-        self.pi = np.array([xo, yo], dtype="float64")
+    def move(self, x0, y0, z0):
+        self.pi = np.array([x0, y0, z0], dtype="float64")
 
-    def draw2D(self):
-        pygame.draw.line(screen, "white", self.pi, self.p)
-
-    def draw3D(self, a):
-        ...
-
-
-        # pygame.draw.line(screen, [255-map(self.len, 0, 2**(1/2)*max(HEIGHT, WIDTH), 0, 15)**2]*3, 
-        #                  (map(self.angle, a - FOV//2, a + FOV//2, 0, WIDTH), HEIGHT//2-map(self.len, 0, 2**(1/2)*max(HEIGHT, WIDTH), HEIGHT//2, 0)),
-        #                  (map(self.angle, a - FOV//2, a + FOV//2, 0, WIDTH), HEIGHT//2+map(self.len, 0, 2**(1/2)*max(HEIGHT, WIDTH), HEIGHT//2, 0)), WIDTH//(FOV//res)+1)
-        
-class Object():
-    def __init__(self, ax, ay, bx, by):
-        self.a = np.array([ax, ay], dtype="float64")
-        self.b = np.array([bx, by], dtype="float64")
+class Line():
+    def __init__(self, ax, ay, az, bx, by, bz):
+        self.a = np.array([ax, ay, az], dtype="float64")
+        self.b = np.array([bx, by, bz], dtype="float64")
         self.type = "line"
-    
-    def draw(self):
-        pygame.draw.line(screen, 'white', self.a, self.b)
 
 def main():
     
@@ -90,19 +74,20 @@ def main():
 
     R = 10
 
-    xo = 400
-    yo = 400
+    x0 = 400
+    y0 = 400
+    z0 = 400
 
-    a = FOV
-
-    mode = "2D"
-
-    for i in range(int((a-FOV//2) / res), int((a+FOV//2) / res)):
-        rays.append(Ray(xo, yo, i*res))
+    theta = FOV
+    phi = -FOV
+    for i in range(int((phi-FOV/2) / res), int((phi+FOV/2) / res)):
+        for j in range(int((theta-FOV/2) / res), int((theta+FOV/2) / res)):
+        
+            rays.append(Ray(x0, y0, z0, j*res, i*res))
 
     objects = []
-    objects.append(Object(600, 600, 600, 200))
-    objects.append(Object(100, 100, 700, 500))
+    objects.append(Line(600, 600, 0, 600, 200, 0))
+    objects.append(Line(100, 100, 100, 700, 500, 500))
 
     inputs = []
 
@@ -128,11 +113,14 @@ def main():
                     inputs.append('L')
                 if e.key == pygame.K_RIGHT:
                     inputs.append('R')
+                if e.key == pygame.K_UP:
+                    inputs.append('U')
+                if e.key == pygame.K_DOWN:
+                    inputs.append('O') # search for a better letter
                 if e.key == pygame.K_SPACE:
-                    if mode == "3D":
-                        mode = "2D"
-                    else:
-                        mode = "3D"
+                    inputs.append('T')
+                if e.key == pygame.K_LSHIFT:
+                    inputs.append('B')
                 if e.key == pygame.K_e:
                     R += 1
                 if e.key == pygame.K_q:
@@ -151,40 +139,59 @@ def main():
                     inputs.remove('L')
                 if e.key == pygame.K_RIGHT:
                     inputs.remove('R')
+                if e.key == pygame.K_UP:
+                    inputs.remove('U')
+                if e.key == pygame.K_DOWN:
+                    inputs.remove('O') # search for a better letter
+                if e.key == pygame.K_SPACE:
+                    inputs.remove('T')
+                if e.key == pygame.K_LSHIFT:
+                    inputs.remove('B')
+
         for i in inputs:
             if i == 'D':
-                xo = clamp(xo + np.cos(np.radians(a+90))*vel, 0, WIDTH)
-                yo = clamp(yo + np.sin(np.radians(a+90))*vel, 0, HEIGHT)
+                x0 = clamp(x0 + np.cos(np.radians(theta+np.pi/2))*vel, 0, WIDTH)
+                y0 = clamp(y0 + np.sin(np.radians(theta+np.pi/2))*vel, 0, HEIGHT)
             if i == 'A':
-                xo = clamp(xo + np.cos(np.radians(a-90))*vel, 0, WIDTH)
-                yo = clamp(yo + np.sin(np.radians(a-90))*vel, 0, HEIGHT)
+                x0 = clamp(x0 + np.cos(np.radians(theta-np.pi/2))*vel, 0, WIDTH)
+                y0 = clamp(y0 + np.sin(np.radians(theta-np.pi/2))*vel, 0, HEIGHT)
             if i == 'W':
-                xo = clamp(xo + np.cos(np.radians(a))*vel, 0, WIDTH)
-                yo = clamp(yo + np.sin(np.radians(a))*vel, 0, HEIGHT)
+                x0 = clamp(x0 + np.cos(np.radians(theta))*vel, 0, WIDTH)
+                y0 = clamp(y0 + np.sin(np.radians(theta))*vel, 0, HEIGHT)
             if i == 'S':
-                xo = clamp(xo + np.cos(np.radians(a+180))*vel, 0, WIDTH)
-                yo = clamp(yo + np.sin(np.radians(a+180))*vel, 0, HEIGHT)
+                x0 = clamp(x0 + np.cos(np.radians(theta+np.pi))*vel, 0, WIDTH)
+                y0 = clamp(y0 + np.sin(np.radians(theta+np.pi))*vel, 0, HEIGHT)
+            if i == 'T':
+                z0 = clamp(z0 + vel, 0, DEPTH)
+            if i == 'B':
+                z0 = clamp(z0 - vel, 0, DEPTH)
             if i == 'L':
-                a -= avel
+                theta -= avel
                 for ray in rays:
-                    ray.angle -= avel
+                    ray.theta -= avel
             if i == 'R':
-                a += avel
+                theta += avel
                 for ray in rays:
-                    ray.angle += avel
+                    ray.theta += avel
+            if i == 'U':
+                phi += avel
+                for ray in rays:
+                    ray.theta += avel
+            if i == 'O':
+                phi -= avel
+                for ray in rays:
+                    ray.phi -= avel
 
         screen.fill('black')
-
-        for ray in rays:
-            ray.move(xo, yo)
-            ray.march(objects, R)
-            if mode == "2D":
-                ray.draw2D()
+        pixels = pygame.PixelArray(screen)
+        for i, ray in enumerate(rays):
+            ray.move(x0, y0, z0)
+            t, d = ray.march(objects, R)
+            if d == -1:
+                pixels[i%10, i//10] = [(160, 160, 160)]
             else:
-                ray.draw3D(a)
-        if mode == "2D":
-            for object in objects:
-                object.draw()
+                pixels[i%10, i//10] = [COLORS[t]]
+        pixels.close()
 
         pygame.display.flip()
         clock.tick(60)
