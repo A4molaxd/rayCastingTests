@@ -17,7 +17,8 @@ def sdfLine(point, line, R):
     return np.linalg.norm(point - line.a - (line.b - line.a) * h) - R
 
 def sdfSphere(point, sphere):
-    return np.linalg.norm(point - sphere.p) - sphere.r
+    return ((point[0] - sphere.p[0])**2 + (point[1] - sphere.p[1])**2 + (point[2] - sphere.p[2])**2)**0.5 - sphere.r
+    #return np.linalg.norm(point - sphere.p) - sphere.r
 
 def sdfInfPlane(point, plane):
     return -(point[2]-plane.z)
@@ -47,21 +48,23 @@ class Ray():
         self.p = np.array([x, y, z], dtype="float64")
         self.theta = theta
         self.phi = phi
-
+        self.direction = np.array([np.cos(self.theta)*np.cos(self.phi), np.sin(self.theta)*np.cos(self.phi), np.sin(self.phi)], dtype="float64")
     def march(self, objects, R):
         self.p = self.pi.copy()
         d = 0
-        direction = np.array([np.cos(self.theta)*np.cos(self.phi), np.sin(self.theta)*np.cos(self.phi), np.sin(self.phi)], dtype="float64")
-        while True: 
-
+        #direction = np.array([np.cos(self.theta)*np.cos(self.phi), np.sin(self.theta)*np.cos(self.phi), np.sin(self.phi)], dtype="float64")
+        steps = 4
+        while steps > 0: 
+            steps -= 1
             minDist, minType = sdfScene(self.p, objects, R)
 
-            self.p += direction*minDist
+            self.p += self.direction*minDist
             d += minDist
             if minDist < 1:
                 return (minType, d)
             if self.p[0] < 0 or self.p[0] > WIDTH or self.p[1] < 0 or self.p[1] > HEIGHT or self.p[2] < 0 or self.p[2] > DEPTH:
                 return (None, -1)
+        return (None, -1)
 
     def move(self, x0, y0, z0):
         self.pi = np.array([x0, y0, z0], dtype="float64")
@@ -92,12 +95,12 @@ def main():
 
     R = 10
 
-    res = 0.02
+    res = 0.03
 
     FOV = np.pi/3
 
-    vel = 4
-    avel = 5 * np.pi / 180
+    vel = 3
+    avel = 4 * np.pi / 180
 
     x0 = 400
     y0 = 400
@@ -112,10 +115,10 @@ def main():
             rays.append(Ray(x0, y0, z0, j*res, i*res))
 
     objects = []
-    #objects.append(Line(600, 600, 0, 600, 200, 0))
-    #objects.append(Line(100, 100, 100, 700, 500, 500))
+    objects.append(Line(600, 600, 0, 600, 200, 0))
+    objects.append(Line(100, 100, 100, 700, 500, 500))
     objects.append(Sphere(600, 400, 400, 50))
-    #objects.append(InfPlane(800))
+    objects.append(InfPlane(800))
 
     inputs = []
     frame = 0
@@ -197,19 +200,19 @@ def main():
             if i == 'L':
                 theta -= avel
                 for ray in rays:
-                    ray.theta -= avel
+                    ray.direction = np.array([np.cos(ray.theta + theta)*np.cos(ray.phi + phi), np.sin(ray.theta + theta)*np.cos(ray.phi + phi), np.sin(ray.phi + phi)], dtype="float64")
             if i == 'R':
                 theta += avel
                 for ray in rays:
-                    ray.theta += avel
+                    ray.direction = np.array([np.cos(ray.theta + theta)*np.cos(ray.phi + phi), np.sin(ray.theta + theta)*np.cos(ray.phi + phi), np.sin(ray.phi + phi)], dtype="float64")
             if i == 'U':
                 phi = clamp(phi - avel, -np.pi, np.pi)
                 for ray in rays:
-                    ray.phi = clamp(ray.phi - avel, -np.pi, np.pi)
+                    ray.direction = np.array([np.cos(ray.theta + theta)*np.cos(ray.phi + phi), np.sin(ray.theta + theta)*np.cos(ray.phi + phi), np.sin(ray.phi + phi)], dtype="float64")
             if i == 'O':
                 phi = clamp(phi + avel, -np.pi, np.pi)
                 for ray in rays:
-                    ray.phi = clamp(ray.phi + avel, -np.pi, np.pi)
+                    ray.direction = np.array([np.cos(ray.theta + theta)*np.cos(ray.phi + phi), np.sin(ray.theta + theta)*np.cos(ray.phi + phi), np.sin(ray.phi + phi)], dtype="float64")
 
         screen.fill('black')
         pixels = np.full((HEIGHT, WIDTH, 3), [160, 160, 160])
@@ -219,7 +222,7 @@ def main():
             t, d = ray.march(objects, R)
             if d != -1:
                 pixels[int((i%size) * 800/size): int((i%size) * 800/size) + int(max(size, 800/size)), int((i//size) * 800/size): int((i//size) * 800/size) + int(max(size, 800/size))] = COLORS[t] * clamp((255 + (d / 1386) * -255), 0, 255) # max distance = 1.386 inside a 800x800x800 cube
-        print([x0, y0, z0])
+        #print([x0, y0, z0])
         surface = pygame.surfarray.make_surface(pixels)
         screen.blit(surface, (0, 0))
         pygame.display.flip()
