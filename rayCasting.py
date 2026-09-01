@@ -66,9 +66,9 @@ class Ray():
         pygame.draw.line(screen, 'white', (self.xi, self.yi), (self.x, self.y))
 
     def draw3D(self, a):
-        pygame.draw.line(screen, [255-map(self.len, 0, 2**(1/2)*max(HEIGHT, WIDTH), 0, 15)**2]*3, 
-                         (map(self.angle, a - FOV//2, a + FOV//2, 0, WIDTH), HEIGHT//2-map(self.len, 0, 2**(1/2)*max(HEIGHT, WIDTH), HEIGHT//2, 0)),
-                         (map(self.angle, a - FOV//2, a + FOV//2, 0, WIDTH), HEIGHT//2+map(self.len, 0, 2**(1/2)*max(HEIGHT, WIDTH), HEIGHT//2, 0)), WIDTH//(FOV//res)+1)
+        pygame.draw.line(screen, [255-map(math.sqrt(self.len), 0, (2**0.5*max(HEIGHT, WIDTH))**0.5, 0, 15)**2]*3, 
+                         (map(self.angle, a - FOV//2, a + FOV//2, 0, WIDTH), HEIGHT//2-map(math.sqrt(self.len), 0, (2**0.5*max(HEIGHT, WIDTH))**0.5, HEIGHT//2, 0)),
+                         (map(self.angle, a - FOV//2, a + FOV//2, 0, WIDTH), HEIGHT//2+map(math.sqrt(self.len), 0, (2**0.5*max(HEIGHT, WIDTH))**0.5, HEIGHT//2, 0)), int(WIDTH//(FOV//res)+1))
 
 class Object():
     def __init__(self, x1, y1, x2, y2):
